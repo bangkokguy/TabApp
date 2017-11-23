@@ -14,7 +14,7 @@ import java.util.ArrayList;
  *
  */
 
-class ListViewAdapter extends BaseAdapter {
+class obsolete_ListViewAdapter extends BaseAdapter {
 
     ArrayList<String> list;
     Activity activity;
@@ -22,7 +22,7 @@ class ListViewAdapter extends BaseAdapter {
 
     private int numberOfEntries;
 
-    ListViewAdapter(Activity activity, ArrayList<String> list) {
+    obsolete_ListViewAdapter(Activity activity, ArrayList<String> list) {
         super();
         this.activity = activity;
         this.list = list;
@@ -54,7 +54,7 @@ class ListViewAdapter extends BaseAdapter {
     public View getView(int position, View convertView, ViewGroup parent) {
         // inflate and init the view which is used to prototype the list columns
         if (convertView==null)
-            convertView = inflater.inflate(R.layout.log_entries_columns, null);
+            convertView = inflater.inflate(R.layout.obsolete_log_entries_columns, null);
         TextView firstColumn = convertView.findViewById(R.id.name);
         TextView secondColumn = convertView.findViewById(R.id.gender);
 

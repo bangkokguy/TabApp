@@ -16,11 +16,16 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.List;
 
@@ -51,7 +56,7 @@ public class NetworkWatchdog extends Service {
     NetworkInfo netInfo = null;
     WifiInfo wifiInfo = null;
 
-    BroadcastReceiver wifiReceiver = new WifiReceiver();
+    BroadcastReceiver wifiReceiver = new NetworkChanged();
     BroadcastReceiver scanReceiver = new ScanReceiver();
 
     PreferredHotSpot preferredHotSpot;
@@ -60,9 +65,13 @@ public class NetworkWatchdog extends Service {
     AudioWarning aw;
     Intent intent = null;
 
+
+    // Target we publish for clients to send messages to IncomingHandler.
+    final Messenger mMessenger = new Messenger(new IncomingHandler());
+
     @Override
     public void onCreate() {
-        Log.init(getSharedPreferences(EVENT_HISTORY, MODE_PRIVATE));
+        Log.init(recipient); //getSharedPreferences(EVENT_HISTORY, MODE_PRIVATE));
         if(DEBUG) Log.d(TAG, "onCreate");
 
         //Notification noti =
@@ -155,9 +164,6 @@ public class NetworkWatchdog extends Service {
         return true;
     }
 
-    @Override
-    public IBinder onBind(Intent intent) { throw new UnsupportedOperationException("Not yet implemented"); }
-
     /**
      * receive network changes
      * A change in network connectivity has occurred.
@@ -182,9 +188,9 @@ public class NetworkWatchdog extends Service {
      * if there are no connected networks at all.
      * Constant Value: "android.net.conn.CONNECTIVITY_CHANGE"
      */
-    public class WifiReceiver extends BroadcastReceiver {
+    public class NetworkChanged extends BroadcastReceiver {
 
-        private final String TAG = NetworkWatchdog.TAG + "*" + WifiReceiver.class.getSimpleName();
+        private final String TAG = NetworkWatchdog.TAG + "*" + NetworkChanged.class.getSimpleName();
 
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -212,11 +218,16 @@ public class NetworkWatchdog extends Service {
                     aw.notify(WIFI_CONNECTING, "Wifi connecting");
             }
 
+            // refresh the overlay info
             displayNetworkInfo(Color.YELLOW);
+
+            // send message to the main activity
+            recipient.replyTo (2, "network changed");
         }
     }
 
     void setIntent (Intent intent) {this.intent = intent;}
+
     void displayNetworkInfo (int color) {
 
         Bundle bundle = intent.getExtras();
@@ -486,12 +497,14 @@ public class NetworkWatchdog extends Service {
      * Log wrapper->log entries will be passed to main activity through SharedPreferences
      */
     static private class Log {
-        private final static String HISTORY_KEY = "log_entry";
-        private static SharedPreferences eventHistory;
+        //private final static String HISTORY_KEY = "log_entry";
+        //private static SharedPreferences eventHistory;
+        private static Recipient recipient;
 
-        static void init (SharedPreferences eventHistory) {
-            Log.eventHistory = eventHistory;
-        }
+        static void init (Recipient r) {recipient = r;}
+                //(SharedPreferences eventHistory) {
+            //Log.eventHistory = eventHistory;
+        //}
 
         static void d(String tag, String s) {
             writeToPreference("d", tag, s);
@@ -513,13 +526,84 @@ public class NetworkWatchdog extends Service {
             android.util.Log.v(tag, s);
         }
 
+        interface Recipient {
+            void replyTo (int what, Object obj);
+        }
         // log entries will be received through SharedPreferencesChangedListener
         private static void writeToPreference(String type, String tag, String s) {
-            SharedPreferences.Editor editor = eventHistory.edit(); //save log entries
+            /*SharedPreferences.Editor editor = eventHistory.edit(); //save log entries
             editor.putString(
                     HISTORY_KEY, //key
                     type + " " + s + " " + tag); //content
-            editor.apply();
+            editor.apply();*/
+            recipient.replyTo( 1, (type + " " + s + " " + tag));
         }
     }
+    //--------------
+
+    Log.Recipient recipient = new Log.Recipient() {
+        @Override
+        public void replyTo(int what, Object obj) {
+            if ((replyTo != null) && serviceConnected)
+                try {
+                    replyTo.send(Message.obtain(null, what, obj));
+                } catch (RemoteException e) {
+                    e.printStackTrace();
+                }
+        }
+    };
+
+/*    static void replyToActivity (int what, Object obj) {
+        if ((replyTo != null) && serviceConnected)
+            try {
+                replyTo.send(Message.obtain(null, what, obj));
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
+    }*/
+
+    /**
+     * Command to the service to display a message
+     */
+    static final int MSG_SAY_HELLO = 1;
+    static Messenger replyTo = null;
+    static boolean  serviceConnected = false;
+
+    /**
+     * Handler of incoming messages from clients.
+     */
+    static class IncomingHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            Log.d(TAG, "handleMessage->"+msg.toString());
+            switch (msg.what) {
+                case MSG_SAY_HELLO:
+                    Log.v (TAG, "   Object->" + msg.obj);
+                    replyTo = msg.replyTo;
+                    break;
+                default:
+                    super.handleMessage(msg);
+            }
+        }
+    }
+
+    /**
+     * When binding to the service, we return an interface to our messenger
+     * for sending messages to the service.
+     */
+    @Override
+    public IBinder onBind(Intent intent) {
+        Log.d(TAG, "onBind");
+        serviceConnected = true;
+        Toast.makeText(getApplicationContext(), "binding", Toast.LENGTH_SHORT).show();
+        return mMessenger.getBinder();
+    }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        serviceConnected = false;
+        return super.onUnbind(intent);
+    }
+
+    //--------------
 }

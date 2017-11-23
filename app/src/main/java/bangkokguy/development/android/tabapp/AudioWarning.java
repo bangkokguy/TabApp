@@ -1,24 +1,16 @@
 package bangkokguy.development.android.tabapp;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationChannelGroup;
-import android.app.NotificationManager;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.graphics.Color;
-import android.media.AudioAttributes;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.util.Log;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Created by bangkokguy on 11/11/17.
  *
  */
-
 class AudioWarning {
     private final static String TAG = AudioWarning.class.getSimpleName();
 
@@ -29,24 +21,24 @@ class AudioWarning {
     private final static int AUDIO_TWIRL = 5;
     private final static int AUDIO_WET = 6;
 
-    private NotificationManager nm = null;
-    private int notifyId = 1;
+    /*private NotificationManager nm = null;*/
+    /*private int notifyId = 1;*/
     private Context context = null;
 
     AudioWarning(Context context) {
         this.context = context;
-        nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        /*nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);*/
     }
 
-    Notification getNotification (int type) {
+    /*Notification getNotification(int type) {
         return getNotification(type, "", "");
     }
 
-    Notification getNotification (int type, CharSequence text) {
+    Notification getNotification(int type, CharSequence text) {
         return getNotification(type, text, "");
     }
 
-    Notification getNotification (int type, CharSequence text, CharSequence explanation) {
+    Notification getNotification(int type, CharSequence text, CharSequence explanation) {
 
         if (type < 0 || type > 6) {
             throw new NullPointerException("type parameter out of range");
@@ -67,7 +59,7 @@ class AudioWarning {
             notificationChannel.setVibrationPattern(new long[]{100, 200, 300, 400, 500, 400, 300, 200, 400});
             nm.createNotificationChannel(notificationChannel);
 
-            Log.d(TAG, "Uri-->"+resourceToUri(context, R.raw.chafing).toString());
+            Log.d(TAG, "Uri-->" + resourceToUri(context, R.raw.chafing).toString());
             notificationChannel.setSound(getNotificationSoundUri(context, type), new AudioAttributes.Builder().build());
 
             //
@@ -98,16 +90,24 @@ class AudioWarning {
                     .build();
         }
         return noti;
-    }
+    }*/
 
-    void notify (int type, CharSequence text, CharSequence explanation) {
+    /*void notify(int type, CharSequence text, CharSequence explanation) {
         nm.notify(notifyId++, getNotification(type, text, explanation));
-    }
-    void notify (int type, CharSequence text) {
-        nm.notify(notifyId++, getNotification(type, text));
+    }*/
+
+    void notify(int type, CharSequence text) {
+        try {
+            Ringtone r = RingtoneManager.getRingtone(context, getNotificationSoundUri(context, type));
+            r.play();
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e(TAG, "no sound found");
+        }
+        //nm.notify(notifyId++, getNotification(type, text));
     }
 
-    private static Uri getNotificationSoundUri (Context context, int type) {
+    private static Uri getNotificationSoundUri(Context context, int type) {
         int resID = 0;
         switch (type) {
             case AUDIO_CHAFING:
@@ -136,7 +136,7 @@ class AudioWarning {
         return Uri.parse(ContentResolver.SCHEME_ANDROID_RESOURCE + "://" +
                 context.getResources().getResourcePackageName(resID) + '/' +
                 context.getResources().getResourceTypeName(resID) + '/' +
-                context.getResources().getResourceEntryName(resID) );
+                context.getResources().getResourceEntryName(resID));
     }
 
 
