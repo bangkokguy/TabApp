@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.net.ConnectivityManager;
@@ -27,6 +26,7 @@ import android.view.WindowManager;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static android.net.ConnectivityManager.TYPE_MOBILE;
@@ -65,13 +65,17 @@ public class NetworkWatchdog extends Service {
     AudioWarning aw;
     Intent intent = null;
 
+    ArrayList<NetworkInfo> networkInfos = null;
 
     // Target we publish for clients to send messages to IncomingHandler.
     final Messenger mMessenger = new Messenger(new IncomingHandler());
 
     @Override
     public void onCreate() {
-        Log.init(recipient); //getSharedPreferences(EVENT_HISTORY, MODE_PRIVATE));
+        Log.init(recipient);
+
+        /*sharedPreferences = getSharedPreferences(EVENT_HISTORY, MODE_PRIVATE);*/
+
         if(DEBUG) Log.d(TAG, "onCreate");
 
         //Notification noti =
@@ -81,6 +85,7 @@ public class NetworkWatchdog extends Service {
         wm = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
         configuredHotSpots = new ConfiguredHotSpots();
         preferredHotSpot = new PreferredHotSpot("",0,0);
+        networkInfos = new ArrayList<>();
 
         conMan = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 
@@ -134,7 +139,7 @@ public class NetworkWatchdog extends Service {
         // preferred network is identical to actual network, we do nothing
         if (wi.getNetworkId() == netID) {
             if(DEBUG) Log.w(TAG, "preferred network = current network, no change->" + Integer.toString(wi.getNetworkId()) + " " + Integer.toString(netID) + " " + preferredHotSpot.getSSID());
-            displayNetworkInfo(Color.WHITE);
+            displayNetworkInfo(Color.LTGRAY);
             return true;
         }
 
@@ -222,20 +227,21 @@ public class NetworkWatchdog extends Service {
             displayNetworkInfo(Color.YELLOW);
 
             // send message to the main activity
-            recipient.replyTo (2, "network changed");
+            networkInfos.add(ni);
+            recipient.replyTo (2, networkInfos);
         }
     }
 
     void setIntent (Intent intent) {this.intent = intent;}
 
-    void displayNetworkInfo (int color) {
+    void displayNetworkInfo(int color) {
 
         Bundle bundle = intent.getExtras();
         if (bundle != null) {
             for (String key : bundle.keySet()) {
                 Object value = bundle.get(key);
-                if (value==null)value = "null";
-                Log.d(TAG, "Extra Info-->"+String.format("%s %s (%s)", key,
+                if (value == null) value = "null";
+                if (DEBUG) Log.d(TAG, "Extra Info-->" + String.format("%s %s (%s)", key,
                         value.toString(), value.getClass().getName()));
             }
         }
@@ -254,21 +260,24 @@ public class NetworkWatchdog extends Service {
         //api 23 and up: network = conMan.getActiveNetwork();
         wifiInfo = wm.getConnectionInfo();
 
-        Log.d(TAG, "wifiInfo.getLinkSpeed()->"  + Integer.toString(wifiInfo.getLinkSpeed()));
+        if (DEBUG)
+            Log.d(TAG, "wifiInfo.getLinkSpeed()->" + Integer.toString(wifiInfo.getLinkSpeed()));
 
         String text = "";
         if (netInfo == null) text = "no def.net";
         else {
-            Log.d(TAG, "netInfo.getExtraInfo()->" + netInfo.getExtraInfo());
-            Log.d(TAG, "netInfo.getState()->" + netInfo.getState().toString());
-            Log.d(TAG, "netInfo.getType():0-mobile, 1-Wifi->" + netInfo.getType());
-            Log.d(TAG, "netInfo.getSubtypeName()->" + netInfo.getSubtypeName());
-            Log.d(TAG, "netInfo.getTypeName()->" + netInfo.getTypeName());
-            Log.d(TAG, "netInfo.isAvailable()->" + Boolean.toString(netInfo.isAvailable()));
-            Log.d(TAG, "netInfo.isConnected()->" + Boolean.toString(netInfo.isConnected()));
-            Log.d(TAG, "netInfo.isConnectedOrConnecting()->" + Boolean.toString(netInfo.isConnectedOrConnecting()));
-            Log.d(TAG, "netInfo.isFailover()->" + Boolean.toString(netInfo.isFailover()));
-            Log.d(TAG, "netInfo.isRoaming()->" + Boolean.toString(netInfo.isRoaming()));
+            if (DEBUG) {
+                Log.d(TAG, "netInfo.getExtraInfo()->" + netInfo.getExtraInfo());
+                Log.d(TAG, "netInfo.getState()->" + netInfo.getState().toString());
+                Log.d(TAG, "netInfo.getType():0-mobile, 1-Wifi->" + netInfo.getType());
+                Log.d(TAG, "netInfo.getSubtypeName()->" + netInfo.getSubtypeName());
+                Log.d(TAG, "netInfo.getTypeName()->" + netInfo.getTypeName());
+                Log.d(TAG, "netInfo.isAvailable()->" + Boolean.toString(netInfo.isAvailable()));
+                Log.d(TAG, "netInfo.isConnected()->" + Boolean.toString(netInfo.isConnected()));
+                Log.d(TAG, "netInfo.isConnectedOrConnecting()->" + Boolean.toString(netInfo.isConnectedOrConnecting()));
+                Log.d(TAG, "netInfo.isFailover()->" + Boolean.toString(netInfo.isFailover()));
+                Log.d(TAG, "netInfo.isRoaming()->" + Boolean.toString(netInfo.isRoaming()));
+            }
 
             switch (netInfo.getType()) {
                 case TYPE_WIFI:
@@ -342,14 +351,15 @@ public class NetworkWatchdog extends Service {
 
         @Override
         public void onReceive(Context context, Intent intent) {
-            Log.d(TAG, "onReceive");
+            Log.d(TAG, "Scan finished");
 
             configuredHotSpots = new ConfiguredHotSpots(); // reload phone config list (could have been changed)
             preferredHotSpot = new PreferredHotSpot("",0,0); // no preferred config for the current scan result
 
             List<ScanResult> sr = wm.getScanResults();
-            if (sr == null)
-                Log.e(TAG, "empty scan result");
+            if (sr == null) {
+                if(DEBUG)Log.e(TAG, "empty scan result");
+            }
             else {
                 for (ScanResult lsr:sr) { // process scan result list
                     preferredHotSpot = preferredHotSpot.swapHotSpot( // make the new hotspot the favorite one, if it's better than the actual one
@@ -358,7 +368,7 @@ public class NetworkWatchdog extends Service {
                                     configuredHotSpots.getNetID(lsr.SSID),
                                     lsr.level));
                 }
-                Log.d(TAG, "preferred->" + preferredHotSpot.getSSID());
+                if(DEBUG)Log.d(TAG, "preferred->" + preferredHotSpot.getSSID());
                 connectToNetwork(preferredHotSpot.getNetID());
             }
         }
@@ -369,8 +379,8 @@ public class NetworkWatchdog extends Service {
      */
     private class PreferredHotSpot {
         private final String TAG = NetworkWatchdog.TAG + "*" + PreferredHotSpot.class.getSimpleName();
-        private final String[] PREFERRED_SSID = {"Gyatzo", "MrWhite"};
-        private final int[] PREFERRED_SSID_PRIORITY = {10, 20};
+        private final String[] PREFERRED_SSID = {"Gyatzo", "MrWhite", "FrankSchrader", "krazy8"};
+        private final int[] PREFERRED_SSID_PRIORITY = {10, 20, 15, 30};
         private final int MINIMUM_SIGNAL_STRENGTH = - 80; //dBm --- -30 best -90 worst -80 acceptable
         private int priority = 0;
         private int signalStrength = 0;
@@ -382,7 +392,7 @@ public class NetworkWatchdog extends Service {
             setSignalStrength(signalStrength);
             setSSID(SSID);
             setNetID(netID);
-            Log.d(TAG, "SSID("
+            if(DEBUG)Log.d(TAG, "SSID("
                     + SSID
                     + ") netID("
                     + Integer.toString(netID)
@@ -418,7 +428,9 @@ public class NetworkWatchdog extends Service {
         boolean isPreferredSSID(String SSID) {
             for (String s : PREFERRED_SSID) {
                 if (SSID.equals(s)) {
-                    Log.w(TAG, "preferred SSID"); return true;}
+                    if(DEBUG)Log.w(TAG, "preferred SSID");
+                    return true;
+                }
             }
             return false;
         }
@@ -433,34 +445,34 @@ public class NetworkWatchdog extends Service {
             String TAG = this.TAG + ":swapHotSpot";
             // new hot spot is not configured in the phone -> no swap
             if(!configuredHotSpots.isSSIDActive(newHotSpot.getSSID())) {
-                Log.w(TAG, "// new hot spot is not configured in the phone -> no swap");
+                if(DEBUG)Log.w(TAG, "// new hot spot is not configured in the phone -> no swap");
                 return this;
             }
             // new hot spot is not preferred, android should decide which network to connect -> no swap
             if (!isPreferredSSID(newHotSpot.getSSID())) {
-                Log.w(TAG, "// new hots pot is not preferred, android should decide which network to connect -> no swap");
+                if(DEBUG)Log.w(TAG, "// new hots pot is not preferred, android should decide which network to connect -> no swap");
                 return this;
             }
             // new hot spot is preferred but weak -> no swap
             if (isWeak(newHotSpot.getSignalStrength())) {
-                Log.w(TAG, "// new hot spot is preferred but weak -> no swap");
+                if(DEBUG)Log.w(TAG, "// new hot spot is preferred but weak -> no swap");
                 return this;
             }
 
             // new hot spot is preferred, not weak and has higher priority -> swap
             if (isPrior(newHotSpot.getPriority())) {
-                Log.w(TAG, "// new hot spot is preferred, not weak and has higher priority -> swap");
+                if(DEBUG)Log.w(TAG, "// new hot spot is preferred, not weak and has higher priority -> swap");
                 return newHotSpot;
             }
 
             // new hot spot is preferred, not weak but not prior, thou current is weak and the new one is stronger -> swap
             if (isWeak(this.getSignalStrength()) && isStronger(newHotSpot.getSignalStrength())){
-                Log.w(TAG, "// new hot spot is preferred, not weak but not prior, thou current is weak and the new one is stronger -> swap");
+                if(DEBUG)Log.w(TAG, "// new hot spot is preferred, not weak but not prior, thou current is weak and the new one is stronger -> swap");
                 return newHotSpot;
             }
 
             // no change
-            Log.w(TAG, "// no change");
+            if (DEBUG)Log.w(TAG, "// no change");
             return this;
         }
     }
@@ -473,7 +485,7 @@ public class NetworkWatchdog extends Service {
         private List<WifiConfiguration> configuredHotSpots;
 
         ConfiguredHotSpots () {
-            Log.d(TAG, "ConfiguredHotSpots");
+            if(DEBUG)Log.d(TAG, "ConfiguredHotSpots");
             configuredHotSpots = wm.getConfiguredNetworks();
         }
 
@@ -575,7 +587,7 @@ public class NetworkWatchdog extends Service {
     static class IncomingHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
-            Log.d(TAG, "handleMessage->"+msg.toString());
+            if(DEBUG)Log.d(TAG, "handleMessage->"+msg.toString());
             switch (msg.what) {
                 case MSG_SAY_HELLO:
                     Log.v (TAG, "   Object->" + msg.obj);
@@ -593,7 +605,7 @@ public class NetworkWatchdog extends Service {
      */
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(TAG, "onBind");
+        if(DEBUG)Log.d(TAG, "onBind");
         serviceConnected = true;
         Toast.makeText(getApplicationContext(), "binding", Toast.LENGTH_SHORT).show();
         return mMessenger.getBinder();

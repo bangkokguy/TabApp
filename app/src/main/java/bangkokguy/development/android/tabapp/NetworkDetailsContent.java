@@ -6,7 +6,13 @@ import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.support.v4.app.ActivityCompat;
+import android.telephony.CellIdentityGsm;
+import android.telephony.CellIdentityLte;
+import android.telephony.CellIdentityWcdma;
 import android.telephony.CellInfo;
+import android.telephony.CellInfoGsm;
+import android.telephony.CellInfoLte;
+import android.telephony.CellInfoWcdma;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -14,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * http://cellidfinder.com/cells/findcell
  * Helper class for providing sample content for user interfaces created by
  * Android template wizards.
  * <p>
@@ -73,9 +80,40 @@ class NetworkDetailsContent {
             allCellInfo = telephonyManager.getAllCellInfo();
             if (allCellInfo != null)
                 for (CellInfo c : allCellInfo) {
-                    items.add(new ConfigItem(5, "cellinfo", c.toString(), ""));
+                    items.add(new ConfigItem(5, "cellInfo", c.toString(), ""));
+                    items.add(new ConfigItem(5, "addInfo", getAddInfo(c), ""));
+
                 }
         }
+    }
+
+
+    public String getAddInfo(CellInfo cellInfo) {
+        String additional_info = "nothing";
+        if (cellInfo instanceof CellInfoGsm) {
+            CellInfoGsm cellInfoGsm = (CellInfoGsm) cellInfo;
+            CellIdentityGsm cellIdentityGsm = cellInfoGsm.getCellIdentity();
+            additional_info = "cell identity " + cellIdentityGsm.getCid() + "\n"
+                    + "Mobile country code " + cellIdentityGsm.getMcc() + "\n"
+                    + "Mobile network code " + cellIdentityGsm.getMnc() + "\n"
+                    + "local area " + cellIdentityGsm.getLac() + "\n";
+        } else if (cellInfo instanceof CellInfoLte) {
+            CellInfoLte cellInfoLte = (CellInfoLte) cellInfo;
+            CellIdentityLte cellIdentityLte = cellInfoLte.getCellIdentity();
+            additional_info = "cell identity " + cellIdentityLte.getCi() + "\n"
+                    + "Mobile country code " + cellIdentityLte.getMcc() + "\n"
+                    + "Mobile network code " + cellIdentityLte.getMnc() + "\n"
+                    + "physical cell " + cellIdentityLte.getPci() + "\n"
+                    + "Tracking area code " + cellIdentityLte.getTac() + "\n";
+        } else if (cellInfo instanceof CellInfoWcdma) {
+            CellInfoWcdma cellInfoWcdma = (CellInfoWcdma) cellInfo;
+            CellIdentityWcdma cellIdentityWcdma = cellInfoWcdma.getCellIdentity();
+            additional_info = "cell identity " + cellIdentityWcdma.getCid() + "\n"
+                    + "Mobile country code " + cellIdentityWcdma.getMcc() + "\n"
+                    + "Mobile network code " + cellIdentityWcdma.getMnc() + "\n"
+                    + "local area " + cellIdentityWcdma.getLac() + "\n";
+        }
+        return additional_info;
     }
 
     List<ConfigItem> getItems () {

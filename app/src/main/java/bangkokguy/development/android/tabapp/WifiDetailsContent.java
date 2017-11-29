@@ -13,7 +13,7 @@ import java.util.List;
  * Helper class for providing sample content for user interfaces created by
  * Android template wizards.
  * <p>
- * TODO: Replace all uses of this class before publishing your app.
+ *
  */
 class WifiDetailsContent {
 
@@ -32,6 +32,8 @@ class WifiDetailsContent {
     /**
      * all hot spots defined in the android phone
      */
+    // the two lists should be merged
+
     private void ConfiguredHotSpots(WifiManager wm) {List<WifiConfiguration> configuredHotSpots;
 
         Log.d(TAG, "ConfiguredHotSpots");
@@ -39,7 +41,7 @@ class WifiDetailsContent {
             configuredHotSpots = wm.getConfiguredNetworks();
             if (configuredHotSpots != null) {
                 for (WifiConfiguration wc : configuredHotSpots) {
-                    items.add(new ConfigItem(1, "SSID", wc.SSID, ""));
+                    items.add(new ConfigItem(1, wc.SSID.replaceAll("\"", ""), Integer.toString(wc.networkId), ""));
                 }
             }
         }
@@ -56,7 +58,7 @@ class WifiDetailsContent {
             for (ScanResult lsr:sr) { // process scan result list
                 /*items.add(new ConfigItem(2, "BSSID", lsr.BSSID, ""));*/
                 /*items.add(new ConfigItem(2, "capabilities", lsr.capabilities, ""));*/
-                items.add(new ConfigItem(2, "SSID", lsr.SSID, ""));
+                items.add(new ConfigItem(2, lsr.SSID, Integer.toString(lsr.frequency), ""));
                 /*items.add(new ConfigItem(2, "centerFreq0", Integer.toString(lsr.centerFreq0), ""));
                 items.add(new ConfigItem(2, "centerFreq1", Integer.toString(lsr.centerFreq1), ""));
                 items.add(new ConfigItem(2, "channelWidth", Integer.toString(lsr.channelWidth), ""));

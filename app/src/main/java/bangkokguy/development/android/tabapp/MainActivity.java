@@ -3,6 +3,7 @@ package bangkokguy.development.android.tabapp;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -12,7 +13,6 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
-import android.support.v4.view.PagerTabStrip;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 
@@ -24,12 +24,11 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.ViewGroup;
 
-import com.viewpagerindicator.CirclePageIndicator;
-import com.viewpagerindicator.LinePageIndicator;
-import com.viewpagerindicator.TabPageIndicator;
 import com.viewpagerindicator.TitlePageIndicator;
+
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener,
@@ -37,6 +36,8 @@ public class MainActivity extends AppCompatActivity
 {
 
     final static private String TAG = MainActivity.class.getSimpleName();
+
+    ArrayList<NetworkInfo> networkInfos = null;
 
     /**
      * The {@link android.support.v4.view.PagerAdapter} that will provide
@@ -46,7 +47,7 @@ public class MainActivity extends AppCompatActivity
      * may be best to switch to a
      * {@link android.support.v4.app.FragmentStatePagerAdapter}.
      */
-    static PagerAdapter pagerAdapter;
+    PagerAdapter pagerAdapter;
 
     /**
      * The {@link ViewPager} that will host the section contents.
@@ -54,10 +55,20 @@ public class MainActivity extends AppCompatActivity
     ViewPager mViewPager;
     TitlePageIndicator titleIndicator;
 
+    FragmentManager fragmentManager;
+    Fragment networkDetails = null;
+    Fragment networkActivity = null;
+
+    Messenger serviceMessenger = null;
+    boolean serviceConnected = false;
+    Messenger messageBack = null;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        networkInfos = new ArrayList<>();
 
         startService(new Intent(this, NetworkWatchdog.class));
 
@@ -65,8 +76,8 @@ public class MainActivity extends AppCompatActivity
         setSupportActionBar(toolbar);
 
         // Create the adapter that will return a fragment for each of the n primary sections of the activity.
-        /*mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());*/
-        pagerAdapter = new PagerAdapter(getSupportFragmentManager());
+        fragmentManager = getSupportFragmentManager();
+        pagerAdapter = new PagerAdapter(fragmentManager);
 
         // Set up the ViewPager with the sections adapter.
         // This is the code part, where our fragment should be filled in the right way
@@ -80,9 +91,8 @@ public class MainActivity extends AppCompatActivity
 
         /*PagerTabStrip pagerTabStrip = mViewPager.findViewById(R.id.pager_tab_strip);*/
         /*PagerTitleStrip pagerTitleStrip = mViewPager.findViewById(R.id.pager_title_strip);*/
-
         /*pagerTabStrip.setTabIndicatorColorResource(R.color.colorAccent);
-        pagerTabStrip.setDrawFullUnderline(true);*/
+        /*pagerTabStrip.setDrawFullUnderline(true);*/
         /*pagerTabStrip.addView();*/
         /*pagerTitleStrip.setTextColor(Color.RED);*/
 
@@ -100,11 +110,7 @@ public class MainActivity extends AppCompatActivity
 
     }
 
-    Messenger serviceMessenger = null;
-    boolean serviceConnected = false;
-    Messenger messageBack = null;
-
-    /**
+     /**
      * Following two methods implement the interface callbacks from ServiceConnection
      * @param componentName ?
      * @param iBinder ?
@@ -117,7 +123,7 @@ public class MainActivity extends AppCompatActivity
 
         try {
             Message msg = Message.obtain(null, 1, "gekkó");
-            messageBack = new Messenger(new IncomingHandler());
+            messageBack = new Messenger(new IncomingHandler(this));
             msg.replyTo = messageBack;
             serviceMessenger.send(msg);
         } catch (RemoteException e) {
@@ -126,25 +132,43 @@ public class MainActivity extends AppCompatActivity
 
     }
 
-    static Fragment networkDetails = null;
-
     static class IncomingHandler extends Handler {
+        private final WeakReference<MainActivity> mActivity;
+
+        IncomingHandler (MainActivity activity) {
+            mActivity = new WeakReference<>(activity);
+        }
+
+
         @Override
         public void handleMessage(Message msg) {
-            Log.d(TAG, "Message in->"+msg.toString());
+
+            MainActivity activity;
+            activity = mActivity.get();
+
             switch (msg.what) {
                 case 1:
-                    Log.v(TAG, "   Object->" + msg.obj);
                     break;
-                case 2:
-                    Log.v(TAG, "   case 2->");
-                    networkDetails = pagerAdapter.getNetworkDetailsFragment();
-                    if (networkDetails != null) {
-                        Messenger m = networkDetails.getArguments().getParcelable(NetworkDetailsFragment.ARG_MESSENGER);
+                case 2: // NetworkWatchdog has new entries in event-list todo: show the new content in the NetworkActivityFragment
+
+                    //notify the Network Activity Fragment about the new network events
+                    /* extract the ni-list from the message */
+                    activity.networkInfos = (ArrayList<NetworkInfo>) msg.obj;
+
+                    Log.v(TAG, "   case 2->" + activity.networkInfos.toString());
+
+                    activity.networkActivity = activity.pagerAdapter.getNetworkActivityFragment();
+                    activity.pagerAdapter.getNetworkActivityFragment().setNetworkInfos(activity.networkInfos);
+                    activity.pagerAdapter.notifyDataSetChanged();
+
+                    //notify the Network Details Fragment about the new network events
+                    activity.networkDetails = activity.pagerAdapter.getNetworkDetailsFragment();
+                    if (activity.networkDetails != null) {
+                        Messenger m = activity.networkDetails.getArguments().getParcelable(NetworkDetailsFragment.ARG_MESSENGER);
                         if (m != null)
                             try {
                                 m.send(Message.obtain(null, 1, "basszki anyád"));
-                                pagerAdapter.notifyDataSetChanged();
+                                activity.pagerAdapter.notifyDataSetChanged();
                             } catch (RemoteException e) {
                                 e.printStackTrace();
                             }
@@ -170,6 +194,20 @@ public class MainActivity extends AppCompatActivity
             unbindService(this);
             serviceConnected = false;
         }
+    }
+
+    @Override
+    protected void onRestart() {
+        super.onRestart();
+        // Bind to NetworkWatchdog
+        bindService(new Intent(this, NetworkWatchdog.class), this /*this=implemented ServiceConnection*/, 0);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Bind to NetworkWatchdog
+        bindService(new Intent(this, NetworkWatchdog.class), this /*this=implemented ServiceConnection*/, 0);
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
@@ -219,54 +257,4 @@ public class MainActivity extends AppCompatActivity
 
         return super.onOptionsItemSelected(item);
     }
-
-    /**
-     * A {@link FragmentPagerAdapter} that returns a fragment corresponding to
-     * one of the sections/tabs/pages.
-     */
-    /*public class SectionsPagerAdapter extends FragmentPagerAdapter {
-        final static int FRAGMENT_LOG = 0;
-        final static int FRAGMENT_WIFI_LIST = 1;
-        final static int FRAGMENT_WIFI_DETAILS = 2;
-        final static int FRAGMENT_NETWORK_DETAILS = 3;
-        final static int FRAGMENT_I_DO_NOT_KNOW = 4;
-
-        SectionsPagerAdapter(FragmentManager fm) {
-            super(fm);
-        }
-
-        @Override
-        public void destroyItem(ViewGroup container, int position, Object object) {
-            super.destroyItem(container, position, object);
-        }
-
-        @Override
-        public Fragment getItem(int position) {
-            // getItem is called to instantiate the fragment for the given page.
-            // Return a PlaceholderFragment (defined as a static inner class below).
-            //ItemFragment extends Fragment
-            switch (position) {
-                case FRAGMENT_LOG:
-                    return ItemFragment.newInstance(position + 1);
-                case FRAGMENT_WIFI_LIST:
-                    return ItemFragment.newInstance(position + 1);
-                case FRAGMENT_WIFI_DETAILS:
-                    return WifiDetailsFragment.newInstance(position + 1);
-                case FRAGMENT_NETWORK_DETAILS:
-                    networkDetails = NetworkDetailsFragment.newInstance(position + 1);
-                    return networkDetails;
-                case FRAGMENT_I_DO_NOT_KNOW:
-                    return ItemFragment.newInstance(position + 1);
-
-                default:
-                    throw new NullPointerException("Fragment type out of range");
-            }
-        }
-
-        @Override
-        public int getCount() {
-            // Show 5 total pages.
-            return 5;
-        }
-    }*/
 }

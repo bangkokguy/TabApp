@@ -1,9 +1,12 @@
 package bangkokguy.development.android.tabapp;
 
+import android.net.NetworkInfo;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.view.ViewGroup;
+
+import java.util.ArrayList;
 
 /**
  * A {@link FragmentPagerAdapter} that returns a fragment corresponding to
@@ -18,7 +21,9 @@ class PagerAdapter extends FragmentPagerAdapter {
     private final static int FRAGMENT_NETWORK_DETAILS = 3;
     private final static int FRAGMENT_I_DO_NOT_KNOW = 4;
 
-     PagerAdapter(FragmentManager fm) {
+
+
+    PagerAdapter(FragmentManager fm) {
         super(fm);
     }
 
@@ -28,8 +33,10 @@ class PagerAdapter extends FragmentPagerAdapter {
     }
 
     private NetworkDetailsFragment networkDetailsFragment = null;
+    private NetworkActivityFragment networkActivityFragment = null;
 
     NetworkDetailsFragment getNetworkDetailsFragment () {return networkDetailsFragment;}
+    NetworkActivityFragment getNetworkActivityFragment () {return networkActivityFragment;}
 
     @Override
     public Fragment getItem(int position) {
@@ -38,7 +45,8 @@ class PagerAdapter extends FragmentPagerAdapter {
             /*ItemFragment extends Fragment*/
         switch (position) {
             case FRAGMENT_LOG:
-                return ItemFragment.newInstance(position + 1);
+                networkActivityFragment = NetworkActivityFragment.newInstance(position + 1);
+                return networkActivityFragment;
             case FRAGMENT_WIFI_LIST:
                 return ItemFragment.newInstance(position + 1);
             case FRAGMENT_WIFI_DETAILS:
