@@ -139,7 +139,7 @@ public class NetworkWatchdog extends Service {
         // preferred network is identical to actual network, we do nothing
         if (wi.getNetworkId() == netID) {
             if(DEBUG) Log.w(TAG, "preferred network = current network, no change->" + Integer.toString(wi.getNetworkId()) + " " + Integer.toString(netID) + " " + preferredHotSpot.getSSID());
-            displayNetworkInfo(Color.LTGRAY);
+            displayNetworkInfo(Color.GRAY);
             return true;
         }
 

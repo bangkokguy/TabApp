@@ -71,6 +71,8 @@ public class MainActivity extends AppCompatActivity
         networkInfos = new ArrayList<>();
 
         startService(new Intent(this, NetworkWatchdog.class));
+        startService(new Intent(this, Watchdog.class));
+
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -146,38 +148,43 @@ public class MainActivity extends AppCompatActivity
             MainActivity activity;
             activity = mActivity.get();
 
-            switch (msg.what) {
-                case 1:
-                    break;
-                case 2: // NetworkWatchdog has new entries in event-list todo: show the new content in the NetworkActivityFragment
-
-                    //notify the Network Activity Fragment about the new network events
-                    /* extract the ni-list from the message */
-                    activity.networkInfos = (ArrayList<NetworkInfo>) msg.obj;
-
-                    Log.v(TAG, "   case 2->" + activity.networkInfos.toString());
-
-                    activity.networkActivity = activity.pagerAdapter.getNetworkActivityFragment();
-                    activity.pagerAdapter.getNetworkActivityFragment().setNetworkInfos(activity.networkInfos);
-                    activity.pagerAdapter.notifyDataSetChanged();
-
-                    //notify the Network Details Fragment about the new network events
-                    activity.networkDetails = activity.pagerAdapter.getNetworkDetailsFragment();
-                    if (activity.networkDetails != null) {
-                        Messenger m = activity.networkDetails.getArguments().getParcelable(NetworkDetailsFragment.ARG_MESSENGER);
-                        if (m != null)
-                            try {
-                                m.send(Message.obtain(null, 1, "basszki anyád"));
-                                activity.pagerAdapter.notifyDataSetChanged();
-                            } catch (RemoteException e) {
-                                e.printStackTrace();
-                            }
-                    }
-                    // how about removing the dirty fragment and create a new?
-                    break;
-                default:
-                    super.handleMessage(msg);
+            if (activity==null) {
+                Log.d(TAG, "handleMessage has activity null");
             }
+                else {
+                    switch (msg.what) {
+                        case 1:
+                            break;
+                        case 2: // NetworkWatchdog has new entries in event-list todo: show the new content in the NetworkActivityFragment
+
+                            //notify the Network Activity Fragment about the new network events
+                            /* extract the ni-list from the message */
+                            activity.networkInfos = (ArrayList<NetworkInfo>) msg.obj;
+
+                            Log.v(TAG, "   case 2->" + activity.networkInfos.toString());
+
+                            activity.networkActivity = activity.pagerAdapter.getNetworkActivityFragment();
+                            activity.pagerAdapter.getNetworkActivityFragment().setNetworkInfos(activity.networkInfos);
+                            activity.pagerAdapter.notifyDataSetChanged();
+
+                            //notify the Network Details Fragment about the new network events
+                            activity.networkDetails = activity.pagerAdapter.getNetworkDetailsFragment();
+                            if (activity.networkDetails != null) {
+                                Messenger m = activity.networkDetails.getArguments().getParcelable(NetworkDetailsFragment.ARG_MESSENGER);
+                                if (m != null)
+                                    try {
+                                        m.send(Message.obtain(null, 1, "basszki anyád"));
+                                        activity.pagerAdapter.notifyDataSetChanged();
+                                    } catch (RemoteException e) {
+                                        e.printStackTrace();
+                                    }
+                            }
+                            // how about removing the dirty fragment and create a new?
+                            break;
+                        default:
+                            super.handleMessage(msg);
+                    }
+                }
         }
     }
 

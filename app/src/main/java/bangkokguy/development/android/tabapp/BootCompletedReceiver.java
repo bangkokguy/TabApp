@@ -12,5 +12,6 @@ public class BootCompletedReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         Log.d(TAG, "onReceive");
         context.startService(new Intent(context, NetworkWatchdog.class));
+        context.startService(new Intent(context, Watchdog.class));
     }
 }
