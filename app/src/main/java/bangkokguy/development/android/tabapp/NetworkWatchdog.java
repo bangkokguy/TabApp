@@ -21,6 +21,8 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.WindowManager;
 import android.widget.TextView;
@@ -42,7 +44,7 @@ public class NetworkWatchdog extends Service {
 
     private final static String TAG = NetworkWatchdog.class.getSimpleName();
     private final static boolean DEBUG = BuildConfig.BUILD_TYPE.equals("debug"); //true;
-    private final static String EVENT_HISTORY = "event_history";
+    //private final static String EVENT_HISTORY = "event_history";
 
     final static int WIFI_DISCONNECTING = 1;            //AUDIO_CHAFING = 1;
     final static int WIFI_CONNECTING = 2;               //AUDIO_GENTLE_ALARM = 2;
@@ -53,6 +55,7 @@ public class NetworkWatchdog extends Service {
 
     WifiManager wm = null;
     ConnectivityManager conMan = null;
+    TelephonyManager tm = null;
     NetworkInfo netInfo = null;
     WifiInfo wifiInfo = null;
 
@@ -61,7 +64,7 @@ public class NetworkWatchdog extends Service {
 
     PreferredHotSpot preferredHotSpot;
     ConfiguredHotSpots configuredHotSpots;
-    Overlay overlay;
+    Overlay g_overlay;
     AudioWarning aw;
     Intent intent = null;
 
@@ -89,7 +92,7 @@ public class NetworkWatchdog extends Service {
 
         conMan = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 
-        overlay = new Overlay();
+        g_overlay = new Overlay();
     }
 
     @Override
@@ -205,29 +208,36 @@ public class NetworkWatchdog extends Service {
             setIntent(intent);
 
             // get the reason for network change
-            NetworkInfo ni = intent.getExtras().getParcelable("networkInfo");
-            NetworkInfo.State s = ni.getState();
-            int nt = ni.getType();
+            NetworkInfo ni;
+            NetworkInfo.State s;
+            int nt;
 
-            // Change in mobile connection
-            if (nt == TYPE_MOBILE) {
-                if (s == NetworkInfo.State.DISCONNECTED || s == NetworkInfo.State.DISCONNECTING)
-                    aw.notify(MOBILE_DISCONNECTING, "Mobile Data turning off");
-                else if (s == NetworkInfo.State.CONNECTED || s == NetworkInfo.State.CONNECTING)
-                    aw.notify(MOBILE_CONNECTING, "Mobile Data turning on");
-            // Change in WIFI connection
-            } else {
-                if (s == NetworkInfo.State.DISCONNECTED || s == NetworkInfo.State.DISCONNECTING)
-                    aw.notify(WIFI_DISCONNECTING, "Wifi disconnecting");
-                else if (s == NetworkInfo.State.CONNECTED || s == NetworkInfo.State.CONNECTING)
-                    aw.notify(WIFI_CONNECTING, "Wifi connecting");
+            ni = intent.getExtras().getParcelable("networkInfo");
+            if (ni != null) {
+                s = ni.getState();
+                nt = ni.getType();
+
+                // Change in mobile connection
+                if (nt == TYPE_MOBILE) {
+                    tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+                    if (s == NetworkInfo.State.DISCONNECTED || s == NetworkInfo.State.DISCONNECTING)
+                        aw.notify(MOBILE_DISCONNECTING, "Mobile Data turning off");
+                    else if (s == NetworkInfo.State.CONNECTED || s == NetworkInfo.State.CONNECTING)
+                        aw.notify(MOBILE_CONNECTING, "Mobile Data turning on");
+                // Change in WIFI connection
+                } else {
+                    if (s == NetworkInfo.State.DISCONNECTED || s == NetworkInfo.State.DISCONNECTING)
+                        aw.notify(WIFI_DISCONNECTING, "Wifi disconnecting");
+                    else if (s == NetworkInfo.State.CONNECTED || s == NetworkInfo.State.CONNECTING)
+                        aw.notify(WIFI_CONNECTING, "Wifi connecting");
+                }
             }
 
             // refresh the overlay info
             displayNetworkInfo(Color.YELLOW);
 
             // send message to the main activity
-            networkInfos.add(ni);
+            if (ni!=null) networkInfos.add(ni);
             recipient.replyTo (2, networkInfos);
         }
     }
@@ -251,7 +261,7 @@ public class NetworkWatchdog extends Service {
           NetworkInfo netInfo = null;*/
 
         if (wm == null || conMan == null) {
-            overlay.setText("error", Color.RED);
+            g_overlay.setText("error", Color.RED);
             aw.notify(ERROR, "General error: wm or conman == null");
             return;
         }
@@ -288,15 +298,20 @@ public class NetworkWatchdog extends Service {
                             + Integer.toString(wifiInfo.getLinkSpeed());
                     break;
                 case TYPE_MOBILE:
+                    String s2 = "";
+                    if (tm != null) {
+                        s2 = tm.getNetworkOperatorName();
+                    }
                     String s = netInfo.getExtraInfo();
-                    text = s.substring(s.indexOf("."), s.length());
+                    String s1 = netInfo.getSubtypeName();
+                    text = s.substring(s.indexOf(".")+1, s.length()) + " " + s1 + " " + s2;
                     break;
                 default:
                     text = netInfo.getTypeName();
             }
         }
 
-        overlay.setText(text, color);
+        g_overlay.setText(text, color);
     }
 
     /**
@@ -330,14 +345,24 @@ public class NetworkWatchdog extends Service {
                     layoutParams.y = 10;
 
                     overlay = new TextView(NetworkWatchdog.this);
-                    overlay.setText ("dummy");
+                    setText ("dummy", Color.WHITE);
 
                     windowManager.addView(overlay, layoutParams);
                 }
             }
         }
         void setText (String s, int color) {
-            overlay.setText(s);
+            char c[] = s.toCharArray();
+            c = "1234567890".toCharArray();
+            overlay.setText (s);//c, 0 ,5);
+            overlay.setWidth(250);
+            overlay.setHorizontallyScrolling(true);
+            overlay.setEllipsize(TextUtils.TruncateAt.MARQUEE);
+            //overlay.setSingleLine(true);
+            overlay.setSelected(true);
+            overlay.setMarqueeRepeatLimit(-1);
+
+//            overlay.setText(s);
             overlay.setTextColor(color);
         }
     }
@@ -553,16 +578,13 @@ public class NetworkWatchdog extends Service {
     }
     //--------------
 
-    Log.Recipient recipient = new Log.Recipient() {
-        @Override
-        public void replyTo(int what, Object obj) {
-            if ((replyTo != null) && serviceConnected)
-                try {
-                    replyTo.send(Message.obtain(null, what, obj));
-                } catch (RemoteException e) {
-                    e.printStackTrace();
-                }
-        }
+    Log.Recipient recipient = (what, obj) -> {
+        if ((replyTo != null) && serviceConnected)
+            try {
+                replyTo.send(Message.obtain(null, what, obj));
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
     };
 
 /*    static void replyToActivity (int what, Object obj) {

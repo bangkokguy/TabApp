@@ -67,8 +67,12 @@ public class NetworkActivityFragment extends Fragment {
         }
 
         MainActivity m = (MainActivity) getActivity();
-        this.networkInfos = m.networkInfos;
-        Log.d(TAG, "onCreate networkInfos-->" + networkInfos.toString());
+        if (m.networkInfos == null)
+            Log.d(TAG, "onCreate networkInfos-->null");
+        else {
+            this.networkInfos = m.networkInfos;
+            Log.d(TAG, "onCreate networkInfos-->" + networkInfos.toString());
+        }
     }
 
     @Override
